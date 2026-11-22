@@ -1,0 +1,16 @@
+# El plan gratis de Render apaga la app después de 15 minutos sin visitas y tarda en volver.
+# Esto la visita cada 10 minutos para que siempre abra rápido.
+# Configurar la variable APP_URL en Settings > Secrets and variables > Actions > Variables.
+name: Mantener despierta
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  visitar:
+    runs-on: ubuntu-latest
+    if: ${{ vars.APP_URL != '' }}
+    steps:
+      - run: curl --silent --show-error --max-time 90 --retry 2 "${{ vars.APP_URL }}/api/estado"

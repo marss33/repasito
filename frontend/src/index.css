@@ -1,0 +1,390 @@
+@import 'tailwindcss';
+
+/* El modo oscuro lo decide el selector de tema (claro, oscuro o el del sistema) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  @apply bg-stone-50 text-stone-800 antialiased dark:bg-stone-950 dark:text-stone-200;
+}
+
+/* Texto en Markdown (resúmenes y chat) */
+.md {
+  @apply leading-relaxed;
+}
+.md > * + * {
+  @apply mt-3;
+}
+.md h1 {
+  @apply text-xl font-semibold;
+}
+.md h2 {
+  @apply mt-6 text-lg font-semibold;
+}
+.md h3 {
+  @apply mt-4 font-semibold;
+}
+.md ul {
+  @apply list-disc space-y-1 pl-5;
+}
+.md ol {
+  @apply list-decimal space-y-1 pl-5;
+}
+.md strong {
+  @apply font-semibold text-stone-900 dark:text-white;
+}
+.md code {
+  @apply rounded bg-stone-100 px-1 py-0.5 text-[0.9em] dark:bg-stone-800;
+}
+.md pre {
+  @apply overflow-x-auto rounded-lg bg-stone-100 p-3 dark:bg-stone-800;
+}
+.md blockquote {
+  @apply border-l-4 border-indigo-300 pl-3 text-stone-600 dark:border-indigo-700 dark:text-stone-400;
+}
+.md table {
+  @apply w-full text-sm;
+}
+.md th,
+.md td {
+  @apply border border-stone-200 px-2 py-1 text-left dark:border-stone-700;
+}
+.md .katex-display {
+  @apply overflow-x-auto overflow-y-hidden py-1;
+}
+.md-linea strong {
+  @apply font-semibold;
+}
+.md-linea code {
+  @apply rounded bg-stone-100 px-1 text-[0.9em] dark:bg-stone-800;
+}
+
+/* Cursor que parpadea mientras la IA escribe */
+.escribiendo > :last-child::after {
+  content: '▍';
+  @apply ml-0.5 animate-pulse text-indigo-500;
+}
+
+/* Flashcard que se da vuelta */
+.tarjeta {
+  perspective: 1200px;
+}
+.tarjeta-interior {
+  @apply relative h-full w-full transition-transform duration-500;
+  transform-style: preserve-3d;
+}
+.tarjeta-interior.volteada {
+  transform: rotateY(180deg);
+}
+.tarjeta-cara {
+  @apply absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-2xl p-8 text-center;
+  backface-visibility: hidden;
+}
+.tarjeta-dorso {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-interior {
+    transition: none;
+  }
+}
+
+/* --- Escenas de Mi rincón y la biblioteca --- */
+@keyframes parpadeo {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes cola {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(9deg);
+  }
+}
+@keyframes respirar {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.2px);
+  }
+}
+@keyframes titilar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes vapor {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  40% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+@keyframes lluvia {
+  from {
+    transform: translate(4px, -24px);
+  }
+  to {
+    transform: translate(-4px, 24px);
+  }
+}
+.escena .ojos {
+  animation: parpadeo 5s infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.escena .cola-gato,
+.escena .cola-perro {
+  animation: cola 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+}
+.escena .cola-perro {
+  animation-duration: 0.7s;
+}
+.escena .respira {
+  animation: respirar 4s ease-in-out infinite;
+}
+.escena .titila {
+  animation: titilar 3s ease-in-out infinite;
+}
+.escena .vapor path {
+  animation: vapor 2.6s ease-out infinite;
+}
+.escena .lluvia {
+  animation: lluvia 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .escena * {
+    animation: none !important;
+  }
+}
+
+@keyframes ecualizador {
+  0%,
+  100% {
+    height: 30%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+.ecualizador {
+  animation: ecualizador 0.9s ease-in-out infinite;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.aparecer {
+  animation: aparecer 0.25s ease-out;
+}
+
+/* Pizarra: usamos nuestro propio panel de herramientas (arriba, estilo Paint) en lugar del de Excalidraw */
+.pizarra .App-menu_top,
+.pizarra .App-menu__left,
+.pizarra .layer-ui__wrapper__footer,
+.pizarra .App-bottom-bar,
+.pizarra .HintViewer {
+  display: none !important;
+}
+
+@keyframes llama {
+  0%,
+  100% {
+    transform: scaleY(1) skewX(0deg);
+  }
+  33% {
+    transform: scaleY(1.08) skewX(2deg);
+  }
+  66% {
+    transform: scaleY(0.94) skewX(-2deg);
+  }
+}
+@keyframes brasa {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.escena .llama {
+  animation: llama 0.9s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.escena .brasa {
+  animation: brasa 2.2s ease-in-out infinite;
+}
+
+/* Salas en pixel art */
+.escena-pixel image {
+  image-rendering: pixelated;
+}
+@keyframes lluvia-pixel {
+  from {
+    transform: translate(2px, -10px);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+.escena .lluvia-pixel {
+  animation: lluvia-pixel 0.6s steps(5) infinite;
+}
+@keyframes vapor-pixel {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  40% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.escena .vapor-pixel rect {
+  animation: vapor-pixel 2.4s steps(6) infinite;
+}
+@keyframes cuadro-a {
+  0%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.escena .cuadro-0 {
+  animation: cuadro-a 0.5s infinite;
+}
+.escena .cuadro-1 {
+  animation: cuadro-a 0.5s infinite reverse;
+}
+@keyframes respira-pixel {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(1px);
+  }
+}
+.escena .respira-pixel {
+  animation: respira-pixel 3.2s steps(1) infinite;
+}
+.escena-pixel text {
+  font-variant-ligatures: none;
+}
+/* Parpadeo de las mascotas pixel: un instante se tapan los ojos */
+@keyframes parpadeo-pixel {
+  0%,
+  94%,
+  100% {
+    opacity: 0;
+  }
+  95%,
+  99% {
+    opacity: 1;
+  }
+}
+.escena .parpadeo-pixel {
+  opacity: 0;
+  animation: parpadeo-pixel 4.5s steps(1) infinite;
+}
+
+/* Reloj y radio de las salas grupales: se pueden tocar */
+.escena .pixel-clic {
+  cursor: pointer;
+  outline: none;
+}
+.escena .pixel-clic:hover,
+.escena .pixel-clic:focus-visible {
+  filter: brightness(1.18) drop-shadow(0 0 1px #fff3b0);
+}
+@keyframes nota-pixel {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.escena .nota-pixel > g {
+  animation: nota-pixel 2.2s steps(6) infinite;
+}
+/* El dibujo no toma clics (la luz del ambiente va encima de todo), salvo el reloj y la radio */
+.escena-pixel * {
+  pointer-events: none;
+}
+.escena-pixel .pixel-clic,
+.escena-pixel .pixel-clic * {
+  pointer-events: auto;
+}
+
+/* Actividad de Discord en el celular: respetar el notch y la barra de abajo. Discord pasa sus propios
+ * márgenes; si no están (iOS o fuera de Discord) se usan los del sistema. */
+:root {
+  --sait: var(--discord-safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --saib: var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sail: var(--discord-safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sair: var(--discord-safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+.actividad-discord {
+  padding-top: calc(1rem + var(--sait));
+  padding-bottom: calc(1rem + var(--saib));
+  padding-left: calc(0.75rem + var(--sail));
+  padding-right: calc(0.75rem + var(--sair));
+}
+@keyframes nieve-pixel {
+  from {
+    transform: translate(-1px, -8px);
+  }
+  to {
+    transform: translate(1px, 0);
+  }
+}
+.escena .nieve-pixel {
+  animation: nieve-pixel 2.4s steps(8) infinite;
+}

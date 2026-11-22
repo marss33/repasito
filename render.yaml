@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: repasito
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/estado
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REPASO_COOKIE_SEGURA
+        value: "true"
+      # La app se usa solo como actividad de Discord
+      - key: REPASITO_SOLO_DISCORD
+        value: "true"
+      # De la app en https://discord.com/developers/applications
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false

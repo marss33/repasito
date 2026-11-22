@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.db
+
+# Claves y datos privados: nunca se suben
+.env
+.env.*
+!.env.example
+*privado*
+*secret*
+
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Páginas de prueba del arte pixel (solo para desarrollo)
+frontend/dev/
