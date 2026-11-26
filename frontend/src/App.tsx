@@ -3,6 +3,7 @@ import {
   BookOpen,
   Check,
   FileText,
+  Gamepad2,
   Layers,
   ListChecks,
   Loader2,
@@ -46,14 +47,16 @@ function leerRuta(): Ruta {
 const Chat = lazy(() => import('./components/Chat'))
 const Flashcards = lazy(() => import('./components/Flashcards'))
 const Quiz = lazy(() => import('./components/Quiz'))
+const Juegos = lazy(() => import('./components/Juegos'))
 
-type Pestana = 'apuntes' | 'chat' | 'flashcards' | 'quiz' | 'sala'
+type Pestana = 'apuntes' | 'chat' | 'flashcards' | 'quiz' | 'juegos' | 'sala'
 
 const PESTANAS: { id: Pestana; icono: typeof FileText }[] = [
   { id: 'apuntes', icono: FileText },
   { id: 'chat', icono: MessageSquare },
   { id: 'flashcards', icono: Layers },
   { id: 'quiz', icono: ListChecks },
+  { id: 'juegos', icono: Gamepad2 },
   { id: 'sala', icono: Armchair },
 ]
 
@@ -440,6 +443,7 @@ export function Aplicacion({
                     {pestana === 'chat' && <Chat materia={actual} onCambio={recargar} />}
                     {pestana === 'flashcards' && <Flashcards materia={actual} onCambio={recargar} />}
                     {pestana === 'quiz' && <Quiz materia={actual} onCambio={recargar} />}
+                    {pestana === 'juegos' && <Juegos materia={actual} onCambio={recargar} />}
                     {pestana === 'sala' && !salaAbierta && <Esqueleto filas={3} />}
                   </Suspense>
                 </Atrapaerrores>

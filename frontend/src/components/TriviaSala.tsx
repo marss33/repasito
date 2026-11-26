@@ -2,7 +2,7 @@ import { Check, Crown, Loader2, Paperclip, Trophy, Upload, Users, X } from 'luci
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, mensajeDeError } from '../api'
 import { useIdioma } from '../i18n'
-import type { EstadoTrivia } from '../useSala'
+import type { Conectado, EstadoTrivia, ModoTrivia } from '../useSala'
 import { Aviso, Boton, Modal, campo } from './ui'
 
 const MAX_ARCHIVOS = 3
@@ -32,6 +32,7 @@ function useRestante(fin: number, ahoraServidor: () => number) {
 export default function TriviaSala({
   codigo,
   usuarioId,
+  conectados,
   trivia,
   preparando,
   ahoraServidor,
@@ -40,6 +41,7 @@ export default function TriviaSala({
 }: {
   codigo: string
   usuarioId: number
+  conectados: Conectado[]
   trivia: EstadoTrivia | null
   preparando: { por: string; tema: string } | null
   ahoraServidor: () => number
@@ -59,16 +61,25 @@ export default function TriviaSala({
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{tr.preparandoDetalle}</p>
         </div>
       ) : (
-        <Crear codigo={codigo} />
+        <Crear codigo={codigo} usuarioId={usuarioId} conectados={conectados} />
       )}
     </Modal>
   )
 }
 
-function Crear({ codigo }: { codigo: string }) {
+const MODOS: ModoTrivia[] = ['opciones', 'vf', 'completar', 'rapido']
+const DIFICULTADES = ['facil', 'media', 'dificil'] as const
+const CANTIDADES = [5, 8, 10, 15]
+
+function Crear({ codigo, usuarioId, conectados }: { codigo: string; usuarioId: number; conectados: Conectado[] }) {
   const { t } = useIdioma()
   const tr = t.trivia
   const [tema, setTema] = useState('')
+  const [modo, setModo] = useState<ModoTrivia>('opciones')
+  const [dificultad, setDificultad] = useState<(typeof DIFICULTADES)[number]>('media')
+  const [cantidad, setCantidad] = useState(8)
+  const [rival, setRival] = useState<number | null>(null)
+  const otros = conectados.filter((c) => c.id !== usuarioId)
   const [archivos, setArchivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +91,7 @@ function Crear({ codigo }: { codigo: string }) {
     setEnviando(true)
     setError(null)
     try {
-      await api.crearTrivia(codigo, tema.trim(), archivos)
+      await api.crearTrivia(codigo, tema.trim(), archivos, { modo, dificultad, cantidad, rival })
       // Desde acá avisa la sala: "preparando" y después la invitación
     } catch (err) {
       setError(mensajeDeError(err))
@@ -100,6 +111,68 @@ function Crear({ codigo }: { codigo: string }) {
           maxLength={120}
           className={`${campo} mt-1 w-full`}
         />
+      </label>
+      <div>
+        <span className="text-sm font-medium">{tr.modo}</span>
+        <div className="mt-1 grid grid-cols-2 gap-1.5">
+          {MODOS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModo(m)}
+              aria-pressed={modo === m}
+              className={`rounded-lg border px-2.5 py-2 text-left text-sm ${
+                modo === m
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200'
+                  : 'border-stone-200 hover:border-indigo-300 dark:border-stone-700'
+              }`}
+            >
+              <span className="block font-medium">{tr.modos[m].nombre}</span>
+              <span className="block text-xs text-stone-500 dark:text-stone-400">{tr.modos[m].detalle}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-sm font-medium">{tr.dificultad}</span>
+          <select
+            value={dificultad}
+            onChange={(e) => setDificultad(e.target.value as (typeof DIFICULTADES)[number])}
+            className={`${campo} mt-1 w-full`}
+          >
+            {DIFICULTADES.map((d) => (
+              <option key={d} value={d}>
+                {tr.dificultades[d]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">{tr.cantidad}</span>
+          <select value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} className={`${campo} mt-1 w-full`}>
+            {CANTIDADES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="block">
+        <span className="text-sm font-medium">{tr.paraQuien}</span>
+        <select
+          value={rival ?? ''}
+          onChange={(e) => setRival(e.target.value ? Number(e.target.value) : null)}
+          className={`${campo} mt-1 w-full`}
+        >
+          <option value="">{tr.todaLaSala}</option>
+          {otros.map((c) => (
+            <option key={c.id} value={c.id}>
+              {tr.dueloCon(c.nombre)}
+            </option>
+          ))}
+        </select>
       </label>
       <div>
         <span className="text-sm font-medium">{tr.archivos}</span>
@@ -175,7 +248,8 @@ function Partida({
     enviar({ tipo: 'trivia', accion: 'responder', opcion })
   }
 
-  const unirme = !yo && trivia.fase !== 'terminada' && (
+  const puedoJugar = trivia.rival === null || trivia.rival === usuarioId || soyCreador
+  const unirme = !yo && puedoJugar && trivia.fase !== 'terminada' && (
     <Boton className="w-full" onClick={() => enviar({ tipo: 'trivia', accion: 'unirme' })}>
       <Users className="size-4" /> {tr.unirme}
     </Boton>
@@ -184,7 +258,12 @@ function Partida({
   if (trivia.fase === 'invitando') {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-stone-600 dark:text-stone-300">{tr.invitando(trivia.creador, trivia.total)}</p>
+        <p className="text-sm text-stone-600 dark:text-stone-300">
+          {trivia.rival_nombre ? tr.invitandoDuelo(trivia.creador, trivia.rival_nombre) : tr.invitando(trivia.creador, trivia.total)}
+        </p>
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          {tr.modos[trivia.modo].nombre} · {tr.dificultades[trivia.dificultad]} · {tr.preguntas(trivia.total)}
+        </p>
         <Jugadores trivia={trivia} usuarioId={usuarioId} />
         <p className="text-center text-sm text-stone-500 tabular-nums dark:text-stone-400">{tr.empiezaEn(Math.ceil(restante))}</p>
         {unirme}

@@ -16,6 +16,9 @@ PUNTOS_MIN = 500
 PODIO = (30, 20, 10)  # monedas para el 1.º, 2.º y 3.º (si jugaron al menos dos)
 POR_ACIERTO = 2
 MAX_TEMA = 120
+MODOS = ("opciones", "vf", "completar", "rapido")
+DIFICULTADES = ("facil", "media", "dificil")
+CANTIDADES = (5, 8, 10, 15)
 
 
 @dataclass
@@ -39,6 +42,10 @@ class Trivia:
     fin: float = 0.0  # cuándo termina la fase actual (reloj del servidor)
     jugadores: dict[int, Jugador] = field(default_factory=dict)
     premiada: bool = False
+    modo: str = "opciones"  # opciones, vf, completar o rapido (solo suma el primero que acierta)
+    dificultad: str = "media"
+    rival: int | None = None  # duelo 1 contra 1: solo pueden jugar el creador y el rival
+    rival_nombre: str | None = None
 
     def invitar(self, ahora: float) -> None:
         self.fase = "invitando"
@@ -48,6 +55,8 @@ class Trivia:
     def unir(self, usuario_id: int, nombre: str) -> bool:
         """Se puede sumar mientras se juega (arranca con 0 puntos). No después del final."""
         if self.fase == "terminada" or usuario_id in self.jugadores:
+            return False
+        if self.rival is not None and usuario_id not in (self.creador_id, self.rival):
             return False
         self.jugadores[usuario_id] = Jugador(nombre)
         return True
@@ -85,11 +94,16 @@ class Trivia:
             return False
         jugador.respuesta = opcion
         jugador.acerto = opcion == pregunta["correcta"]
-        if jugador.acerto:
+        if jugador.acerto and self.modo == "rapido" and self.alguien_acerto(usuario_id):
+            jugador.aciertos += 1  # acertó, pero ya lo había hecho otro antes: no suma puntos
+        elif jugador.acerto:
             resto = max(0.0, min(1.0, (self.fin - ahora) / SEG_PREGUNTA))
             jugador.puntos += round(PUNTOS_MIN + (PUNTOS_MAX - PUNTOS_MIN) * resto)
             jugador.aciertos += 1
         return True
+
+    def alguien_acerto(self, salvo: int | None = None) -> bool:
+        return any(j.acerto for uid, j in self.jugadores.items() if uid != salvo)
 
     def todos_respondieron(self) -> bool:
         return bool(self.jugadores) and all(j.respuesta is not None for j in self.jugadores.values())
@@ -98,7 +112,8 @@ class Trivia:
         """Pasa a la fase siguiente si se terminó el tiempo (o si ya respondieron todos)."""
         if self.fase == "invitando" and ahora >= self.fin:
             return self.empezar(ahora)
-        if self.fase == "pregunta" and (ahora >= self.fin or self.todos_respondieron()):
+        termino = self.todos_respondieron() or (self.modo == "rapido" and self.alguien_acerto())
+        if self.fase == "pregunta" and (ahora >= self.fin or termino):
             self.fase, self.fin = "revelando", ahora + SEG_REVELAR
             return True
         if self.fase == "revelando" and ahora >= self.fin:
@@ -132,6 +147,10 @@ class Trivia:
             "total": len(self.preguntas),
             "fin": self.fin,
             "segundos": SEG_PREGUNTA,
+            "modo": self.modo,
+            "dificultad": self.dificultad,
+            "rival": self.rival,
+            "rival_nombre": self.rival_nombre,
             "pregunta": (
                 {
                     "enunciado": pregunta["enunciado"],

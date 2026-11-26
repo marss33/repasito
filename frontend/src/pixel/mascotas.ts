@@ -535,6 +535,16 @@ export const ACCESORIOS_CABEZA: Record<string, { mapa: string[]; paleta: Record<
     paleta: { k: '#2a2a34', y: '#f2c35b' },
   },
   corona: { mapa: ['y..y..y', 'yy.y.yy', 'yyyyyyy', 'yryyyry'], paleta: { y: '#f2c35b', r: '#e0502a' } },
+  lazo: { mapa: ['rr...rr', 'rrrorrr', 'rr...rr'], paleta: { r: '#e85a8a', o: '#b8366a' }, dx: -4 },
+  'orejas-conejo': {
+    mapa: ['.ww...ww.', '.wp...pw.', '.wp...pw.', '.wp...pw.', 'kkkkkkkkk'],
+    paleta: { w: '#f6f0ea', p: '#f4a0b4', k: '#2a2a34' },
+  },
+  'gorro-navidad': {
+    mapa: ['........ww', '......rrww', '....rrrr..', '..rrrrrr..', '.rrrrrrrr.', 'wwwwwwwwww'],
+    paleta: { r: '#d8404a', w: '#f6f0ea' },
+  },
+  halo: { mapa: ['.yyyyy.', 'y.....y', '.yyyyy.'], paleta: { y: '#fde68a' } },
 }
 
 export const ACCESORIOS_CUELLO: Record<string, { mapa: string[]; paleta: Record<string, string> }> = {
@@ -542,4 +552,6 @@ export const ACCESORIOS_CUELLO: Record<string, { mapa: string[]; paleta: Record<
   collar: { mapa: ['rrrrrrrrr', '....y....'], paleta: { r: '#d8404a', y: '#f2c35b' } },
   panuelo: { mapa: ['rrrrrrrrr', '.rrwrrrr.', '..rrrrr..', '...rrr...', '....r....'], paleta: { r: '#3f6aa0', w: '#ffffff' } },
   bufanda: { mapa: ['bbbbbbbbbbb', 'bwbwbwbwbwb', '.......bw..', '.......wb..'], paleta: { b: '#c8404a', w: '#f6e7c8' } },
+  cascabel: { mapa: ['rrrrrrrrr', '...oyo...', '....o....'], paleta: { r: '#3f8a5a', y: '#f2c35b', o: '#b08a2a' } },
+  'corbata-mascota': { mapa: ['.kkk.', '..b..', '.bbb.', '.bbb.', '..b..'], paleta: { k: '#2a2a34', b: '#3f6aa0' } },
 }

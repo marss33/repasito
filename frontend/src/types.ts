@@ -96,6 +96,33 @@ export interface MensajeSala {
   nombre: string
   texto: string
   creado: string
+  reacciones?: Record<string, number[]> // emoji -> ids de quienes reaccionaron
+  encuesta?: { opciones: string[]; votos: number[][] } | null
+}
+
+export interface Logro {
+  clave: string
+  emoji: string
+  actual: number
+  meta: number
+  monedas: number
+  logrado: boolean
+}
+
+export interface Concepto {
+  termino: string
+  pista: string
+}
+
+export interface ItemTablero {
+  id: number
+  tipo: 'meta' | 'nota'
+  texto: string
+  hecho: boolean
+  hecho_por: string | null
+  por: string
+  usuario_id: number | null
+  creado: string
 }
 
 export interface SalaDetalle extends Sala {

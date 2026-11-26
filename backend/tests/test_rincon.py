@@ -43,10 +43,11 @@ def test_subir_apuntes_da_monedas_y_se_compra_en_la_tienda(cliente):
 
     assert subir(cliente, crear_materia(cliente))["monedas_ganadas"] == 20
     rincon = cliente.get("/api/rincon").json()
-    assert (rincon["monedas"], rincon["ganado_hoy"]["archivos"]) == (120, 20)
+    # 20 por el apunte y 10 por el logro "primer apunte"
+    assert (rincon["monedas"], rincon["ganado_hoy"]["archivos"]) == (130, 20)
 
     rincon = cliente.post("/api/rincon/comprar", json={"articulo": "gorro"}).json()
-    assert (rincon["monedas"], rincon["comprados"]) == (90, ["gorro"])
+    assert (rincon["monedas"], rincon["comprados"]) == (100, ["gorro"])
     assert cliente.post("/api/rincon/comprar", json={"articulo": "gorro"}).status_code == 400
     assert cliente.post("/api/rincon/comprar", json={"articulo": "dragon"}).status_code == 404
 

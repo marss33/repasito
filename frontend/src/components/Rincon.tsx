@@ -9,6 +9,7 @@ import { MascotaPixelSuelta } from '../pixel/MascotaPixel'
 import { EscenaSola, siguienteClima, VistaDecoracion, type Ambiente } from './escena/Escena'
 import { prepararFoto } from './TuCuenta'
 import { Aviso, Boton, campo, Esqueleto, Modal } from './ui'
+import Logros from './Logros'
 
 // Vestidor: cada categoría es una pestaña del panel que se abre al lado del personaje
 type Categoria = 'colores' | 'rostro' | 'pelo' | 'arriba' | 'abajo' | 'trajes' | 'accesorios'
@@ -579,6 +580,8 @@ export default function Rincon({
           <Progreso nombre={r.hoyArchivos} valor={datos.ganado_hoy.archivos} tope={datos.topes.archivos} />
           <Progreso nombre={r.hoySalas} valor={datos.ganado_hoy.salas} tope={datos.topes.salas} />
           <p className="mt-3 text-xs text-stone-400">{r.topeAyuda}</p>
+          <h3 className="mt-6 mb-1 font-semibold">{t.logros.titulo}</h3>
+          <Logros />
         </Modal>
       )}
     </div>

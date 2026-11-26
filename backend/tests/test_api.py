@@ -505,3 +505,30 @@ def test_subida_lenta_que_falla_avisa_el_error(cliente, monkeypatch):
             break
         time.sleep(0.1)
     assert lista[0]["estado"] == "error" and "borroso.jpg" in lista[0]["error"]
+
+
+def test_conceptos_para_los_juegos(cliente):
+    materia = crear_materia(cliente)
+    assert cliente.post(f"/api/materias/{materia}/conceptos", json={}).status_code == 400  # sin apuntes
+    subir(cliente, materia, b"La mitocondria produce energia.", "notas.txt")
+    r = cliente.post(f"/api/materias/{materia}/conceptos", json={"cantidad": 5})
+    assert r.status_code == 200
+    assert [c["termino"] for c in r.json()][:2] == ["mitocondria", "ribosoma"]
+    assert cliente.get("/api/auth/yo").json()["usos_hoy"] == 1
+
+
+def test_logros_se_desbloquean_y_dan_monedas(cliente):
+    def logro(clave):
+        return next(lg for lg in cliente.get("/api/rincon/logros").json() if lg["clave"] == clave)
+
+    assert logro("primer_apunte")["logrado"] is False
+    antes = cliente.get("/api/rincon").json()["monedas"]
+    materia = crear_materia(cliente)
+    subir(cliente, materia, b"La mitocondria produce energia.", "notas.txt")
+    assert logro("primer_apunte") | {"actual": 1} == logro("primer_apunte")
+    assert logro("primer_apunte")["logrado"] is True
+    assert logro("apuntes_10")["actual"] == 1 and not logro("apuntes_10")["logrado"]
+    # 20 por subir el apunte + 10 por el logro
+    assert cliente.get("/api/rincon").json()["monedas"] == antes + 20 + 10
+    yo = cliente.get("/api/auth/yo").json()["id"]
+    assert cliente.get(f"/api/rincon/insignias/{yo}").json() == [{"clave": "primer_apunte", "emoji": "📄"}]

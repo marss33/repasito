@@ -136,3 +136,64 @@ def test_trivia_pide_entre_uno_y_tres_archivos(cliente, cantidad):
             archivos = [("archivos", (f"{i}.txt", b"texto", "text/plain")) for i in range(cantidad)]
             r = tiempo_real.post(f"/api/salas/{codigo}/trivia", files=archivos or None, headers=cookie(cliente))
             assert r.status_code in (400, 422)
+
+
+def test_modo_rapido_solo_suma_el_primero_que_acierta():
+    t = Trivia("Rápido", 1, "Ana", preguntas(1), modo="rapido")
+    t.invitar(T0)
+    t.unir(2, "Beto")
+    t.unir(3, "Caro")
+    t.empezar(T0)
+    t.responder(2, 3, T0 + 1)  # Beto se equivoca: sigue la pregunta
+    assert not t.avanzar(T0 + 1)
+    t.responder(1, 0, T0 + 2)  # Ana acierta primero: se termina la pregunta
+    t.responder(3, 0, T0 + 2)  # Caro acierta después: no suma
+    assert t.avanzar(T0 + 2) and t.fase == "revelando"
+    puntos = {j["nombre"]: j["puntos"] for j in t.a_dict()["jugadores"]}
+    assert puntos["Ana"] > 0 and puntos["Caro"] == 0 and puntos["Beto"] == 0
+
+
+def test_duelo_solo_entre_dos():
+    t = Trivia("Duelo", 1, "Ana", preguntas(1), rival=2, rival_nombre="Beto")
+    t.invitar(T0)
+    assert t.unir(2, "Beto")
+    assert not t.unir(3, "Caro")  # no estaba invitada
+    assert t.a_dict()["rival_nombre"] == "Beto"
+
+
+def test_trivia_con_opciones_y_duelo_en_la_sala(cliente, ia):
+    codigo = cliente.post("/api/salas", json={"nombre": "Repaso"}).json()["codigo"]
+    with TestClient(app) as otro, TestClient(app) as tiempo_real:
+        registrar(otro, "beto@mail.com", "Beto")
+        beto_id = otro.get("/api/auth/yo").json()["id"]
+        with (
+            tiempo_real.websocket_connect(f"/api/salas/{codigo}/ws", headers=cookie(cliente)) as ana,
+            tiempo_real.websocket_connect(f"/api/salas/{codigo}/ws", headers=cookie(otro)) as beto,
+        ):
+            recibir(ana, "estado")
+            recibir(beto, "estado")
+            url = f"/api/salas/{codigo}/trivia"
+            archivo = [("archivos", ("a.txt", b"La mitosis divide una celula.", "text/plain"))]
+            # Opciones que no existen o un rival que no está en la sala
+            assert (
+                tiempo_real.post(url, data={"modo": "loco"}, files=archivo, headers=cookie(cliente)).status_code == 400
+            )
+            assert (
+                tiempo_real.post(url, data={"cantidad": "7"}, files=archivo, headers=cookie(cliente)).status_code == 400
+            )
+            r = tiempo_real.post(url, data={"rival": "9999"}, files=archivo, headers=cookie(cliente))
+            assert r.status_code == 400
+
+            datos = {"modo": "vf", "dificultad": "dificil", "cantidad": "5", "rival": str(beto_id)}
+            assert tiempo_real.post(url, data=datos, files=archivo, headers=cookie(cliente)).status_code == 202
+            while (m := beto.receive_json()).get("evento") != "trivia":
+                pass
+            assert m["para"] == beto_id  # la invitación es para Beto
+            juego = juego_de(beto)
+            assert (juego["modo"], juego["dificultad"], juego["total"], juego["rival_nombre"]) == (
+                "vf",
+                "dificil",
+                5,
+                "Beto",
+            )
+    assert ia.ultima_trivia == (5, "vf", "dificil")

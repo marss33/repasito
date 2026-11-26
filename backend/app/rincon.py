@@ -19,9 +19,16 @@ MONEDAS_DE_BIENVENIDA = 100
 POR_ARCHIVO = 20
 POR_MINUTO_DE_POMODORO = 1.2  # un pomodoro de 25 minutos = 30 monedas
 # Topes por día, para que no se pueda "farmear" subiendo y borrando
-TOPES = {"archivos": 200, "salas": 400}
+TOPES = {"archivos": 200, "salas": 400, "logros": 100_000}
 # "grupo" y "solo" son de antes, cuando el pomodoro se compartía (quedan en el historial)
-MOTIVOS = {"archivo": "archivos", "pomodoro": "salas", "trivia": "salas", "grupo": "salas", "solo": "salas"}
+MOTIVOS = {
+    "archivo": "archivos",
+    "pomodoro": "salas",
+    "trivia": "salas",
+    "logro": "logros",
+    "grupo": "salas",
+    "solo": "salas",
+}
 
 
 @dataclass(frozen=True)
@@ -217,6 +224,10 @@ CATALOGO = {
         Articulo("sombrero-mago", "cabeza", 90),
         Articulo("birrete", "cabeza", 100),
         Articulo("corona", "cabeza", 150),
+        Articulo("lazo", "cabeza", 30),
+        Articulo("orejas-conejo", "cabeza", 55),
+        Articulo("gorro-navidad", "cabeza", 70),
+        Articulo("halo", "cabeza", 90),
         # Cara
         Articulo("anteojos", "cara", 30),
         Articulo("lentes-sol", "cara", 45),
@@ -226,6 +237,8 @@ CATALOGO = {
         Articulo("collar", "cuello", 30),
         Articulo("panuelo", "cuello", 35),
         Articulo("bufanda", "cuello", 45),
+        Articulo("cascabel", "cuello", 30),
+        Articulo("corbata-mascota", "cuello", 40),
         # Escritorio
         Articulo("taza", "decoracion", 15),
         Articulo("libros", "decoracion", 20),
@@ -234,6 +247,11 @@ CATALOGO = {
         Articulo("luces", "decoracion", 60),
         Articulo("mate-escritorio", "decoracion", 15),
         Articulo("matcha", "decoracion", 20),
+        Articulo("manzana", "decoracion", 10),
+        Articulo("cactus", "decoracion", 25),
+        Articulo("lapices", "decoracion", 20),
+        Articulo("reloj-arena", "decoracion", 35),
+        Articulo("vela", "decoracion", 40),
         # Trajes: ropa en conjunto (ver TRAJES)
         Articulo("traje-uniforme", "traje", 60),
         Articulo("traje-oficina", "traje", 60),

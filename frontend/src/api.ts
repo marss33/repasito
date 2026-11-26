@@ -4,7 +4,10 @@ import type {
   Documento,
   DocumentoDetalle,
   Estado,
+  Concepto,
   Flashcard,
+  Logro,
+  ItemTablero,
   Materia,
   Mensaje,
   Pregunta,
@@ -190,12 +193,27 @@ export const api = {
   borrarArchivoSala: (codigo: string, id: number) =>
     pedir<void>(`/salas/${encodeURIComponent(codigo)}/archivos/${id}`, { method: 'DELETE' }),
   /** Arma una trivia para toda la sala con hasta 3 archivos; la invitación llega por la sala en vivo. */
-  crearTrivia: (codigo: string, tema: string, archivos: File[]) => {
+  crearTrivia: (
+    codigo: string,
+    tema: string,
+    archivos: File[],
+    opciones: { modo: string; dificultad: string; cantidad: number; rival: number | null },
+  ) => {
     const formulario = new FormData()
     formulario.append('tema', tema)
+    formulario.append('modo', opciones.modo)
+    formulario.append('dificultad', opciones.dificultad)
+    formulario.append('cantidad', String(opciones.cantidad))
+    if (opciones.rival !== null) formulario.append('rival', String(opciones.rival))
     for (const archivo of archivos) formulario.append('archivos', archivo)
     return pedir<void>(`/salas/${encodeURIComponent(codigo)}/trivia`, { method: 'POST', body: formulario })
   },
+  tablero: (codigo: string) => pedir<ItemTablero[]>(`/salas/${encodeURIComponent(codigo)}/tablero`),
+  agregarAlTablero: (codigo: string, tipo: 'meta' | 'nota', texto: string) =>
+    pedir<ItemTablero>(`/salas/${encodeURIComponent(codigo)}/tablero`, conJson('POST', { tipo, texto })),
+  tildarMeta: (codigo: string, id: number, hecho: boolean) =>
+    pedir<ItemTablero>(`/salas/${encodeURIComponent(codigo)}/tablero/${id}`, conJson('PATCH', { hecho })),
+  borrarDelTablero: (codigo: string, id: number) => pedir<void>(`/salas/${encodeURIComponent(codigo)}/tablero/${id}`, { method: 'DELETE' }),
   archivoSalaAMateria: (codigo: string, id: number, materiaId: number) =>
     pedir<Documento | SubidaPendiente>(
       `/salas/${encodeURIComponent(codigo)}/archivos/${id}/a-materia`,
@@ -207,6 +225,8 @@ export const api = {
     `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${urlApi(`/salas/${encodeURIComponent(codigo)}/ws`)}`,
 
   rincon: () => pedir<Rincon>('/rincon'),
+  logros: () => pedir<Logro[]>('/rincon/logros'),
+  insignias: (usuarioId: number) => pedir<{ clave: string; emoji: string }[]>(`/rincon/insignias/${usuarioId}`),
   comprar: (articulo: string) => pedir<Rincon>('/rincon/comprar', conJson('POST', { articulo })),
   cambiarApariencia: (apariencia: Apariencia) => pedir<Rincon>('/rincon/apariencia', conJson('PUT', apariencia)),
   subirFoto: (imagen: string) => pedir<Rincon>('/rincon/foto', conJson('PUT', { imagen })),
@@ -218,6 +238,8 @@ export const api = {
     pedir<{ access_token: string; sesion: string; usuario: Usuario }>('/discord/token', conJson('POST', { code })),
   salaDeDiscord: (instancia: string, nombre?: string) => pedir<Sala>('/discord/sala', conJson('POST', { instancia, nombre })),
 
+  conceptos: (materiaId: number, tema: string | null) =>
+    pedir<Concepto[]>(`/materias/${materiaId}/conceptos`, conJson('POST', { tema, cantidad: 10 })),
   quiz: (materiaId: number, tema: string, cantidad: number) =>
     pedir<{ preguntas: Pregunta[] }>(`/materias/${materiaId}/quiz`, conJson('POST', { tema: tema.trim() || null, cantidad })),
 }

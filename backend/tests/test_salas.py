@@ -354,3 +354,78 @@ def test_perfil_se_ve_en_la_sala_al_instante(cliente):
         yo = recibir(ws, "estado")["conectados"][0]
         assert yo["nombre"] == "Anita"
         assert yo["apariencia"]["descripcion"] == "😊 Me siento con ganas"
+
+
+# --- Tablero, reacciones y encuestas ---
+
+
+def test_tablero_de_metas_y_notas(cliente):
+    codigo = cliente.post("/api/salas", json={"nombre": "Parcial"}).json()["codigo"]
+    url = f"/api/salas/{codigo}/tablero"
+    with TestClient(app) as otro, TestClient(app) as tiempo_real:
+        registrar(otro, "beto@mail.com", "Beto")
+        with tiempo_real.websocket_connect(f"/api/salas/{codigo}/ws", headers=cookie(otro)) as beto:
+            recibir(beto, "estado")
+            meta = tiempo_real.post(url, json={"tipo": "meta", "texto": "Terminar el TP 2"}, headers=cookie(cliente))
+            assert meta.status_code == 201
+            assert recibir(beto, "tablero") == {"tipo": "tablero"}  # Beto se entera al instante
+            nota = tiempo_real.post(url, json={"tipo": "nota", "texto": "Parcial el 3/12"}, headers=cookie(cliente))
+            assert nota.status_code == 201
+
+            # Beto tilda la meta de Ana
+            r = tiempo_real.patch(f"{url}/{meta.json()['id']}", json={"hecho": True}, headers=cookie(otro))
+            assert (r.json()["hecho"], r.json()["hecho_por"]) == (True, "Beto")
+            # pero no puede borrar la nota de Ana
+            assert tiempo_real.delete(f"{url}/{nota.json()['id']}", headers=cookie(otro)).status_code == 403
+
+    items = cliente.get(url).json()
+    assert [(i["tipo"], i["texto"], i["hecho"]) for i in items] == [
+        ("meta", "Terminar el TP 2", True),
+        ("nota", "Parcial el 3/12", False),
+    ]
+    assert cliente.post(url, json={"tipo": "otra", "texto": "x"}).status_code == 422
+    assert cliente.delete(f"{url}/{items[1]['id']}").status_code == 204
+    assert len(cliente.get(url).json()) == 1
+
+
+def test_reacciones_y_encuestas_en_el_chat(cliente):
+    codigo = cliente.post("/api/salas", json={"nombre": "Parcial"}).json()["codigo"]
+    with TestClient(app) as otro, TestClient(app) as tiempo_real:
+        registrar(otro, "beto@mail.com", "Beto")
+        beto_id = otro.get("/api/auth/yo").json()["id"]
+        with (
+            tiempo_real.websocket_connect(f"/api/salas/{codigo}/ws", headers=cookie(cliente)) as ana,
+            tiempo_real.websocket_connect(f"/api/salas/{codigo}/ws", headers=cookie(otro)) as beto,
+        ):
+            recibir(ana, "estado")
+            recibir(beto, "estado")  # que Beto ya esté adentro antes del primer mensaje
+            ana.send_json({"tipo": "chat", "texto": "¿Arrancamos?"})
+            mensaje = recibir(beto, "chat")["mensaje"]
+
+            beto.send_json({"tipo": "reaccion", "mensaje_id": mensaje["id"], "emoji": "👍"})
+            r = recibir(ana, "reacciones")
+            assert (r["mensaje_id"], r["reacciones"]) == (mensaje["id"], {"👍": [beto_id]})
+            beto.send_json({"tipo": "reaccion", "mensaje_id": mensaje["id"], "emoji": "💩"})  # no está permitido
+            beto.send_json({"tipo": "reaccion", "mensaje_id": mensaje["id"], "emoji": "👍"})  # la saca
+            assert recibir(ana, "reacciones")["reacciones"] == {}
+
+            time.sleep(0.5)  # el chat tiene una pausa mínima entre mensajes de una misma persona
+            ana.send_json({"tipo": "encuesta", "pregunta": "¿Qué repasamos?", "opciones": ["Límites", "Derivadas"]})
+            encuesta = recibir(beto, "chat")["mensaje"]
+            assert (encuesta["texto"], encuesta["encuesta"]["opciones"]) == (
+                "¿Qué repasamos?",
+                ["Límites", "Derivadas"],
+            )
+            beto.send_json({"tipo": "votar", "mensaje_id": encuesta["id"], "opcion": 1})
+            assert recibir(ana, "encuesta")["encuesta"]["votos"] == [[], [beto_id]]
+            beto.send_json({"tipo": "votar", "mensaje_id": encuesta["id"], "opcion": 0})  # cambia el voto
+            assert recibir(ana, "encuesta")["encuesta"]["votos"] == [[beto_id], []]
+            # Con una sola opción no se puede
+            ana.send_json({"tipo": "encuesta", "pregunta": "x", "opciones": ["solo una"]})
+            ana.send_json({"tipo": "ping"})
+            assert recibir(ana, "pong")["tipo"] == "pong"
+
+    # Al volver a entrar se ven las reacciones y los votos guardados
+    detalle = cliente.get(f"/api/salas/{codigo}").json()["mensajes"]
+    assert [m["texto"] for m in detalle] == ["¿Arrancamos?", "¿Qué repasamos?"]
+    assert detalle[1]["encuesta"]["votos"] == [[beto_id], []]

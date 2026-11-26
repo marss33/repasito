@@ -27,6 +27,15 @@ class Tarjeta(BaseModel):
     dorso: str
 
 
+class Concepto(BaseModel):
+    termino: str
+    pista: str
+
+
+class Conceptos(BaseModel):
+    conceptos: list[Concepto]
+
+
 class Tarjetas(BaseModel):
     tarjetas: list[Tarjeta]
 
@@ -42,6 +51,9 @@ class Quiz(BaseModel):
     preguntas: list[Pregunta]
 
 
+EJEMPLO_CONCEPTOS = (
+    '{"conceptos": [{"termino": "mitocondria", "pista": "orgánulo que produce la energía de la célula"}]}'
+)
 EJEMPLO_TARJETAS = '{"tarjetas": [{"frente": "pregunta", "dorso": "respuesta"}]}'
 EJEMPLO_QUIZ = (
     '{"preguntas": [{"enunciado": "pregunta", "opciones": ["A", "B", "C", "D"], '
@@ -328,6 +340,61 @@ class TutorIA:
             f"Creá {cantidad} preguntas de opción múltiple{enfoque}. Cada una con 4 opciones, una sola correcta "
             "(`correcta` es el índice de la correcta, empezando en 0) y opciones incorrectas creíbles. "
             "En `explicacion` contá por qué la correcta es la correcta."
+        )
+        preguntas = self._generar_json(pedido, Quiz, EJEMPLO_QUIZ).preguntas
+        validas = [p for p in preguntas if len(p.opciones) >= 2 and 0 <= p.correcta < len(p.opciones)]
+        if not validas:
+            raise ErrorIA("ia_sin_preguntas")
+        return validas[:cantidad]
+
+    def generar_conceptos(self, contexto: list[Contexto], cantidad: int) -> list[Concepto]:
+        """Términos clave de los apuntes con una pista corta, para el ahorcado y la sopa de letras."""
+        apuntes = "\n\n".join(f"--- {c.documento} {c.ubicacion} ---\n{c.texto}" for c in contexto)
+        pedido = (
+            f"<apuntes>\n{_muestra(apuntes, config.TEXTO_POR_PEDIDO)}\n</apuntes>\n\n"
+            f"Elegí {cantidad} términos clave de estos apuntes para un juego de palabras. Cada `termino` tiene "
+            "que ser una sola palabra (sin espacios ni números, de 4 a 12 letras) y `pista` una definición corta "
+            "que no incluya el término."
+        )
+        conceptos = self._generar_json(pedido, Conceptos, EJEMPLO_CONCEPTOS).conceptos
+        validos = [c for c in conceptos if c.termino.strip().isalpha() and 3 <= len(c.termino.strip()) <= 14]
+        if not validos:
+            raise ErrorIA("ia_sin_preguntas")
+        return validos[:cantidad]
+
+    def generar_trivia(
+        self, contexto: list[Contexto], cantidad: int, tema: str | None, modo: str, dificultad: str
+    ) -> list[Pregunta]:
+        """Preguntas para la trivia de la sala, según el modo de juego y la dificultad."""
+        apuntes = "\n\n".join(f"--- {c.documento} {c.ubicacion} ---\n{c.texto}" for c in contexto)
+        enfoque = f" enfocadas en: {tema}" if tema else ""
+        nivel = {
+            "facil": "fáciles, sobre las ideas principales",
+            "media": "de dificultad media",
+            "dificil": "difíciles, sobre detalles y relaciones entre conceptos",
+        }.get(dificultad, "de dificultad media")
+        if modo == "vf":
+            verdadero, falso = ("Verdadero", "Falso") if self.idioma == "es" else ("True", "False")
+            forma = (
+                f"afirmaciones de verdadero o falso {nivel}{enfoque}. Cada una con exactamente dos opciones: "
+                f'["{verdadero}", "{falso}"]; `correcta` es 0 si es verdadera y 1 si es falsa. '
+                "Que haya verdaderas y falsas mezcladas."
+            )
+        elif modo == "completar":
+            forma = (
+                f"frases para completar {nivel}{enfoque}: el `enunciado` es una oración de los apuntes con una "
+                "palabra o expresión clave reemplazada por ____, y las 4 opciones son posibles palabras para "
+                "el hueco (una sola correcta)."
+            )
+        else:
+            forma = (
+                f"preguntas de opción múltiple {nivel}{enfoque}. Cada una con 4 opciones, una sola correcta y "
+                "opciones incorrectas creíbles. Que sean cortas, para responder rápido."
+            )
+        pedido = (
+            f"<apuntes>\n{_muestra(apuntes, config.TEXTO_POR_PEDIDO)}\n</apuntes>\n\n"
+            f"Creá {cantidad} {forma} (`correcta` es el índice de la correcta, empezando en 0). "
+            "En `explicacion` contá en una oración por qué es así."
         )
         preguntas = self._generar_json(pedido, Quiz, EJEMPLO_QUIZ).preguntas
         validas = [p for p in preguntas if len(p.opciones) >= 2 and 0 <= p.correcta < len(p.opciones)]

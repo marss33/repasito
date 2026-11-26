@@ -165,6 +165,8 @@ class Persistencia:
     dar_monedas: Callable[[list[int], str, int], Awaitable[dict[int, tuple[int, int]]]] | None = None
     # id de usuario -> (apodo, apariencia pública), recién leídos de la base
     leer_perfil: Callable[[int], Awaitable[tuple[str, dict] | None]] | None = None
+    # (id de usuario, contador) -> suma 1 para los logros (trivias jugadas, victorias)
+    contar: Callable[[int, str], Awaitable[None]] | None = None
 
 
 @dataclass
@@ -438,7 +440,8 @@ class SalaEnVivo:
         self.trivia = trivia
         trivia.invitar(time.time())
         await self.a_todos(
-            self.estado(), {"tipo": "evento", "evento": "trivia", "nombre": trivia.creador, "tema": trivia.tema}
+            self.estado(),
+            {"tipo": "evento", "evento": "trivia", "nombre": trivia.creador, "tema": trivia.tema, "para": trivia.rival},
         )
         self._programar_trivia()
 
@@ -453,8 +456,8 @@ class SalaEnVivo:
             cambio = conexion.usuario_id == trivia.creador_id and trivia.empezar(ahora)
         elif accion == "responder":
             cambio = trivia.responder(conexion.usuario_id, mensaje.get("opcion"), ahora)
-            if cambio and trivia.todos_respondieron():
-                trivia.avanzar(ahora)
+            if cambio:
+                trivia.avanzar(ahora)  # si ya respondieron todos (o, en rápido, alguien acertó)
         elif accion == "cerrar":
             cambio = trivia.fase == "terminada" or conexion.usuario_id == trivia.creador_id
             if cambio:
@@ -487,7 +490,15 @@ class SalaEnVivo:
                 await self._trivia_cambio()
 
     async def _premiar_trivia(self, trivia: Trivia) -> None:
-        if not self.persistencia or not self.persistencia.dar_monedas:
+        if not self.persistencia:
+            return
+        if self.persistencia.contar:
+            ranking = trivia.ranking()
+            for usuario_id, _ in ranking:
+                await self.persistencia.contar(usuario_id, "trivias")
+            if len(ranking) >= 2 and ranking[0][1].puntos > 0:
+                await self.persistencia.contar(ranking[0][0], "victorias")
+        if not self.persistencia.dar_monedas:
             return
         for usuario_id, monedas in trivia.premios().items():
             resultado = await self.persistencia.dar_monedas([usuario_id], "trivia", monedas)

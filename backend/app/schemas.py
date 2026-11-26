@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -49,6 +50,28 @@ class MensajeSalaOut(Base):
     usuario_id: int | None
     nombre: str
     texto: str
+    creado: datetime
+    reacciones: dict[str, list[int]] = {}  # emoji -> ids de quienes reaccionaron
+    encuesta: dict | None = None  # {opciones, votos: [[ids] por opción]} si el mensaje es una encuesta
+
+
+class ItemSalaIn(BaseModel):
+    tipo: Literal["meta", "nota"]
+    texto: str = Field(min_length=1, max_length=200)
+
+
+class ItemSalaCambio(BaseModel):
+    hecho: bool
+
+
+class ItemSalaOut(Base):
+    id: int
+    tipo: str
+    texto: str
+    hecho: bool
+    hecho_por: str | None
+    por: str
+    usuario_id: int | None
     creado: datetime
 
 
@@ -148,6 +171,16 @@ class FlashcardOut(Base):
 
 class RepasoIn(BaseModel):
     calidad: int = Field(ge=0, le=5)
+
+
+class ConceptosIn(BaseModel):
+    tema: str | None = Field(default=None, max_length=200)
+    cantidad: int = Field(default=10, ge=4, le=15)
+
+
+class ConceptoOut(BaseModel):
+    termino: str
+    pista: str
 
 
 class QuizIn(BaseModel):

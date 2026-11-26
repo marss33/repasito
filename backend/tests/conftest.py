@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db import Base, engine  # noqa: E402
 from app.deps import get_ia, get_ocr  # noqa: E402
-from app.ia import Pregunta, Respuesta, Tarjeta  # noqa: E402
+from app.ia import Concepto, Pregunta, Respuesta, Tarjeta  # noqa: E402
 from app.limites import reiniciar_todos  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -46,6 +46,19 @@ class IAFalsa:
     def generar_flashcards(self, nombre, texto, cantidad):
         self.llamadas += 1
         return [Tarjeta(frente=f"Pregunta {i}", dorso=f"Respuesta {i}") for i in range(cantidad)]
+
+    def generar_conceptos(self, contexto, cantidad):
+        self.llamadas += 1
+        palabras = ["mitocondria", "ribosoma", "nucleo", "membrana", "citoplasma", "cloroplasto"]
+        return [Concepto(termino=p, pista=f"pista de {p}") for p in palabras[:cantidad]]
+
+    def generar_trivia(self, contexto, cantidad, tema, modo, dificultad):
+        self.llamadas += 1
+        self.ultima_trivia = (cantidad, modo, dificultad)
+        opciones = ["Verdadero", "Falso"] if modo == "vf" else ["a", "b", "c", "d"]
+        return [
+            Pregunta(enunciado=f"P{i}", opciones=opciones, correcta=0, explicacion="porque sí") for i in range(cantidad)
+        ]
 
     def generar_quiz(self, contexto, cantidad, tema):
         self.llamadas += 1

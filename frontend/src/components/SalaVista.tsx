@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  BarChart3,
   BookOpen,
   Check,
   CloudSun,
@@ -29,6 +30,9 @@ import { RadioLofi } from '../lofi'
 import PanelAmbiente, { useClima, useFondo } from './AmbienteSala'
 import RadioSala, { useMiRadio } from './RadioSala'
 import TriviaSala from './TriviaSala'
+import TableroSala from './TableroSala'
+import { Encuesta, NuevaEncuesta, Reacciones } from './ChatExtras'
+import { Insignias } from './Logros'
 import TuCuenta, { EVENTO_APODO } from './TuCuenta'
 import { AvatarPixel } from '../pixel/AvatarPixel'
 import type { Usuario } from '../types'
@@ -101,13 +105,16 @@ export default function SalaVista({
       else if (evento.evento === 'trivia') {
         // Al que la armó se le abre sola; a los demás les llega la invitación
         if (evento.nombre === nombreRef.current) setVerTrivia(true)
-        else setInvitacion({ nombre: evento.nombre, tema: evento.tema })
+        // Un duelo solo le llega a quien desafiaron
+        else if (evento.para == null || evento.para === usuarioRef.current.id) setInvitacion({ nombre: evento.nombre, tema: evento.tema })
       } else if (evento.evento === 'aviso') {
         if (!evento.texto) return
         setAviso(evento.texto)
         window.setTimeout(() => setAviso(null), 6000)
       } else if (evento.evento === 'archivos') {
         setNuevosArchivos((n) => n + 1)
+      } else if (evento.evento === 'tablero') {
+        setCambiosTablero((n) => n + 1)
       } else if (evento.evento === 'monedas') {
         onUsuario({ ...usuarioRef.current, monedas: evento.total })
         setPremio(evento.ganadas)
@@ -124,6 +131,7 @@ export default function SalaVista({
   const [pestana, setPestana] = useState<'estudio' | 'pizarra' | 'archivos' | 'materias'>('estudio')
   const [vioMaterias, setVioMaterias] = useState(false) // se cargan la primera vez y después quedan
   const [nuevosArchivos, setNuevosArchivos] = useState(0)
+  const [cambiosTablero, setCambiosTablero] = useState(0)
   const [chatAbierto, setChatAbierto] = useState(false)
   const [verPomodoro, setVerPomodoro] = useState(false)
   const [verRadio, setVerRadio] = useState(false)
@@ -392,6 +400,7 @@ export default function SalaVista({
         <TriviaSala
           codigo={codigo}
           usuarioId={usuario.id}
+          conectados={estado?.conectados ?? []}
           trivia={estado?.trivia ?? null}
           preparando={estado?.preparando_trivia ?? null}
           ahoraServidor={ahoraServidor}
@@ -465,6 +474,7 @@ export default function SalaVista({
             />
           )
         )}
+        {!personal && <TableroSala codigo={codigo} usuario={usuario} creadorId={creadorId} cambios={cambiosTablero} />}
       </div>
       {perfilDe !== null && estado && (
         <MiniPerfil
@@ -552,6 +562,7 @@ function MiniPerfil({
             {persona.nombre}
           </p>
           <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">{a?.descripcion || t.cuenta.sinDescripcion}</p>
+          <Insignias usuarioId={persona.id} />
         </div>
         {a && (
           <div className="hidden shrink-0 rounded-xl bg-gradient-to-b from-amber-50 to-orange-100 sm:block dark:from-stone-800 dark:to-stone-700">
@@ -1034,6 +1045,7 @@ function ChatSala({
 }) {
   const { t } = useIdioma()
   const [texto, setTexto] = useState('')
+  const [armandoEncuesta, setArmandoEncuesta] = useState(false)
   const lista = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1048,7 +1060,7 @@ function ChatSala({
       return texto ? texto(e.nombre) : null
     }
     if (e.evento === 'monedas') return t.sala.eventos.monedas(e.ganadas)
-    if (e.evento === 'aviso' || e.evento === 'archivos') return null
+    if (e.evento === 'aviso' || e.evento === 'archivos' || e.evento === 'tablero') return null
     if (e.evento === 'archivo') return t.sala.eventos.archivo(e.nombre, e.archivo)
     if (e.evento === 'trivia') return t.sala.eventos.trivia(e.nombre, e.tema)
     return t.sala.eventos[e.evento](e.nombre)
@@ -1095,18 +1107,26 @@ function ChatSala({
                   {m.nombre} {propio && t.sala.vos} ·{' '}
                   {new Date(m.creado + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
-                <p
-                  className={`mt-0.5 inline-block rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap ${
-                    propio ? 'rounded-tr-md bg-indigo-600 text-white' : 'rounded-tl-md bg-stone-100 dark:bg-stone-800'
-                  }`}
-                >
-                  {m.texto}
-                </p>
+                {m.encuesta ? (
+                  <div className={`flex ${propio ? 'justify-end' : ''}`}>
+                    <Encuesta mensaje={m} usuarioId={usuario.id} enviar={enviar} />
+                  </div>
+                ) : (
+                  <p
+                    className={`mt-0.5 inline-block rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap ${
+                      propio ? 'rounded-tr-md bg-indigo-600 text-white' : 'rounded-tl-md bg-stone-100 dark:bg-stone-800'
+                    }`}
+                  >
+                    {m.texto}
+                  </p>
+                )}
+                <Reacciones mensaje={m} usuarioId={usuario.id} propio={propio} enviar={enviar} />
               </div>
             </div>
           )
         })}
       </div>
+      {armandoEncuesta && <NuevaEncuesta enviar={enviar} onCerrar={() => setArmandoEncuesta(false)} />}
       <form
         className="flex items-center gap-2 border-t border-stone-200 p-3 dark:border-stone-800"
         onSubmit={(e) => {
@@ -1116,6 +1136,19 @@ function ChatSala({
           setTexto('')
         }}
       >
+        <button
+          type="button"
+          onClick={() => setArmandoEncuesta((a) => !a)}
+          className={`rounded-lg p-2 transition-colors ${
+            armandoEncuesta
+              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950'
+              : 'text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800'
+          }`}
+          aria-label={t.chatExtras.nuevaEncuesta}
+          title={t.chatExtras.nuevaEncuesta}
+        >
+          <BarChart3 className="size-4" />
+        </button>
         <input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}

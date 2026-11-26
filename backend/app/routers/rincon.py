@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from .. import logros
 from .. import rincon as r
 from ..db import get_db
 from ..deps import usuario_actual
@@ -141,3 +142,14 @@ def ver_foto_mascota(usuario_id: int, _: Usuario = Depends(usuario_actual), db: 
     return Response(
         foto.datos, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"}
     )
+
+
+@router.get("/logros")
+def mis_logros(usuario: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    return logros.estado(db, usuario.id)
+
+
+@router.get("/insignias/{usuario_id}")
+def insignias(usuario_id: int, _: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """Las insignias que ganó alguien (se ven en su miniperfil)."""
+    return [{"clave": lg["clave"], "emoji": lg["emoji"]} for lg in logros.estado(db, usuario_id) if lg["logrado"]]

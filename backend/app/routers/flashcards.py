@@ -6,6 +6,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+from .. import logros
 from ..db import get_db
 from ..deps import flashcard_o_404, materia_o_404
 from ..models import Flashcard, Materia
@@ -70,6 +71,7 @@ def registrar_repaso(datos: RepasoIn, tarjeta: Flashcard = Depends(flashcard_o_4
     tarjeta.repeticiones = nuevo.repeticiones
     tarjeta.proxima = proxima
     db.commit()
+    logros.sumar(db, tarjeta.materia.usuario_id, "repasos")
     return tarjeta
 
 

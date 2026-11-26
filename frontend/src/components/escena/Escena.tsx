@@ -486,12 +486,94 @@ function Matcha({ x, y }: { x: number; y: number }) {
   )
 }
 
+/** Una manzana roja con su hojita. */
+function Manzana({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <R x={x} y={y - 7} w={1} h={2} c="#6b4128" />
+      <R x={x + 1} y={y - 7} w={2} h={1} c="#6a9a3a" />
+      <R x={x - 2} y={y - 5} w={5} h={4} c="#d8404a" />
+      <R x={x - 2} y={y - 5} w={1} h={2} c="#f07a7a" />
+      <R x={x - 1} y={y - 1} w={3} h={1} c="#a82a34" />
+    </g>
+  )
+}
+
+/** Un cactus en maceta de barro. */
+function Cactus({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <R x={x - 1} y={y - 11} w={3} h={7} c="#4f8a5b" />
+      <R x={x - 1} y={y - 11} w={1} h={7} c="#7ab86a" />
+      <R x={x - 3} y={y - 9} w={1} h={3} c="#4f8a5b" />
+      <R x={x - 3} y={y - 7} w={2} h={1} c="#4f8a5b" />
+      <R x={x + 3} y={y - 8} w={1} h={2} c="#4f8a5b" />
+      <R x={x + 2} y={y - 7} w={2} h={1} c="#4f8a5b" />
+      <R x={x} y={y - 12} w={1} h={1} c="#f472b6" />
+      <R x={x - 3} y={y - 4} w={7} h={4} c="#c0663a" />
+      <R x={x - 3} y={y - 4} w={7} h={1} c="#d8844f" />
+    </g>
+  )
+}
+
+/** Un vaso con lápices de colores. */
+function Lapices({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <R x={x - 2} y={y - 10} w={1} h={5} c="#e0502a" />
+      <R x={x} y={y - 11} w={1} h={6} c="#3f6aa0" />
+      <R x={x + 2} y={y - 9} w={1} h={4} c="#f2c35b" />
+      <R x={x - 2} y={y - 11} w={1} h={1} c="#3a2a1a" />
+      <R x={x} y={y - 12} w={1} h={1} c="#3a2a1a" />
+      <R x={x + 2} y={y - 10} w={1} h={1} c="#3a2a1a" />
+      <R x={x - 3} y={y - 5} w={7} h={5} c="#7a8aa0" />
+      <R x={x - 3} y={y - 5} w={1} h={5} c="#a0b0c4" />
+    </g>
+  )
+}
+
+/** Un reloj de arena con la arena cayendo. */
+function RelojDeArena({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <R x={x - 3} y={y - 10} w={7} h={1} c="#8a5a2a" />
+      <R x={x - 3} y={y - 1} w={7} h={1} c="#8a5a2a" />
+      <R x={x - 2} y={y - 9} w={5} h={2} c="#dcecf2" o={0.8} />
+      <R x={x - 1} y={y - 7} w={3} h={1} c="#dcecf2" o={0.8} />
+      <R x={x} y={y - 6} w={1} h={2} c="#f2c35b" />
+      <R x={x - 1} y={y - 4} w={3} h={1} c="#dcecf2" o={0.8} />
+      <R x={x - 2} y={y - 3} w={5} h={2} c="#f2c35b" />
+      <R x={x - 1} y={y - 9} w={3} h={1} c="#f2c35b" />
+    </g>
+  )
+}
+
+/** Una vela encendida en su platito. */
+function Vela({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <g className="vapor-pixel">
+        <R x={x} y={y - 11} w={1} h={2} c="#fde047" />
+      </g>
+      <R x={x} y={y - 9} w={1} h={1} c="#f59e0b" />
+      <R x={x - 1} y={y - 8} w={3} h={6} c="#f6f0ea" />
+      <R x={x - 1} y={y - 8} w={1} h={6} c="#ffffff" />
+      <R x={x - 3} y={y - 2} w={7} h={2} c="#c8a05a" />
+    </g>
+  )
+}
+
 const OBJETOS_DE_MESA: Record<string, (props: { x: number; y: number }) => ReactNode> = {
   taza: Taza,
   'mate-escritorio': MateDeco,
   matcha: Matcha,
   globo: Globo,
   planta: Planta,
+  manzana: Manzana,
+  cactus: Cactus,
+  lapices: Lapices,
+  'reloj-arena': RelojDeArena,
+  vela: Vela,
 }
 
 /** Lo que cada persona tiene en su lugar de la mesa, en las salas grupales (hasta dos cosas chicas). */
@@ -828,6 +910,11 @@ export function EscenaEscritorio({
       {deco.includes('mate-escritorio') && <MateDeco x={48} y={mesa + 4} />}
       {deco.includes('matcha') && <Matcha x={105} y={mesa + 4} />}
       {deco.includes('globo') && <Globo x={115} y={mesa + 4} />}
+      {deco.includes('cactus') && <Cactus x={21} y={mesa + 4} />}
+      {deco.includes('manzana') && <Manzana x={56} y={mesa + 4} />}
+      {deco.includes('reloj-arena') && <RelojDeArena x={74} y={mesa + 4} />}
+      {deco.includes('vela') && <Vela x={98} y={mesa + 4} />}
+      {deco.includes('lapices') && <Lapices x={121} y={mesa + 4} />}
       <Cuaderno x={64} y={mesa + 1} />
       <MascotaDe p={persona} x={88} y={mesa + 5} />
       <Ambientacion ancho={128} alto={80} ambiente={ambiente} />
@@ -1619,6 +1706,14 @@ export function VistaDecoracion({ id }: { id: string }) {
           <Matcha x={0} y={0} />
         </g>
       )}
+      {(['manzana', 'cactus', 'lapices', 'reloj-arena', 'vela'] as const).map((otro) => {
+        const Objeto = OBJETOS_DE_MESA[otro]
+        return id === otro ? (
+          <g key={otro} transform="translate(0 -3) scale(1.4)">
+            <Objeto x={0} y={0} />
+          </g>
+        ) : null
+      })}
     </svg>
   )
 }

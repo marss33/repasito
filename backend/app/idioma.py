@@ -68,6 +68,20 @@ MENSAJES: dict[str, dict[str, str]] = {
         "es": "No se pudo leer {nombre}. Probá de nuevo o subilo en otro formato.",
         "en": "Couldn't read {nombre}. Try again or upload it in another format.",
     },
+    "tablero_lleno": {
+        "es": "Ya hay {maximo} en el tablero. Borrá alguna para agregar otra.",
+        "en": "There are already {maximo} on the board. Delete one to add another.",
+    },
+    "no_es_tu_item": {
+        "es": "Solo puede borrarla quien la escribió o quien creó la sala.",
+        "en": "Only whoever wrote it or created the room can delete it.",
+    },
+    "item_no_existe": {"es": "Eso ya no está en el tablero.", "en": "That's no longer on the board."},
+    "trivia_opciones": {"es": "Esas opciones de trivia no existen.", "en": "Those trivia options don't exist."},
+    "rival_no_esta": {
+        "es": "Esa persona ya no está en la sala. Elegí a alguien que esté conectado.",
+        "en": "That person isn't in the room anymore. Pick someone who's online.",
+    },
     "trivia_archivos": {
         "es": "Para la trivia subí entre 1 y {maximo} archivos.",
         "en": "For the trivia, upload between 1 and {maximo} files.",

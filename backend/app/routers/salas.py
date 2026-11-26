@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import time
 from collections.abc import Callable
 from pathlib import PurePosixPath
 from typing import Annotated
@@ -22,7 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .. import config
+from .. import chat_extras, config, logros
 from ..busqueda import BM25
 from ..db import SessionLocal, get_db
 from ..deps import COOKIE_SESION, buscar_usuario, con_ia, get_ia, get_ocr, usuario_actual, verificar_uso
@@ -32,6 +33,7 @@ from ..idioma import ErrorTraducible, t
 from ..models import (
     ArchivoPizarra,
     ArchivoSala,
+    ItemSala,
     Materia,
     MensajeSala,
     MiembroSala,
@@ -42,18 +44,21 @@ from ..models import (
     ahora,
 )
 from ..rincon import apariencia_publica, dar, version_foto_mascota
-from ..salas import Conexion, Persistencia, generar_codigo, gestor
+from ..salas import ESPERA_ENTRE_MENSAJES, Conexion, Persistencia, generar_codigo, gestor
 from ..schemas import (
     AMateriaIn,
     ArchivoSalaOut,
     DocumentoOut,
+    ItemSalaCambio,
+    ItemSalaIn,
+    ItemSalaOut,
     MensajeSalaOut,
     SalaDetalle,
     SalaIn,
     SalaOut,
     SubidaPendiente,
 )
-from ..trivia import MAX_TEMA, PREGUNTAS, Trivia
+from ..trivia import CANTIDADES, DIFICULTADES, MAX_TEMA, MODOS, Trivia
 from .documentos import subir_apunte
 
 router = APIRouter(prefix="/salas", tags=["salas"])
@@ -144,9 +149,23 @@ def ver(codigo: str, usuario: Usuario = Depends(usuario_actual), db: Session = D
     )
     return SalaDetalle(
         **_a_salida(sala, personal=_dueno_si_es_personal(db, sala) is not None).model_dump(),
-        mensajes=[MensajeSalaOut.model_validate(m) for m in reversed(mensajes)],
+        mensajes=_con_extras(db, list(reversed(mensajes))),
         creador_id=sala.creador_id,
     )
+
+
+def _con_extras(db: Session, mensajes: list[MensajeSala]) -> list[MensajeSalaOut]:
+    """Los mensajes del chat con sus reacciones y, si son encuestas, sus votos."""
+    ids = [m.id for m in mensajes]
+    reacciones = chat_extras.reacciones_de(db, ids)
+    encuestas = chat_extras.encuestas_de(db, ids)
+    salida = []
+    for m in mensajes:
+        out = MensajeSalaOut.model_validate(m)
+        out.reacciones = reacciones.get(m.id, {})
+        out.encuesta = encuestas.get(m.id)
+        salida.append(out)
+    return salida
 
 
 # --- Tiempo real ---
@@ -213,7 +232,20 @@ async def _guardar_imagen_async(codigo: str, imagen: dict) -> None:
 
 def _dar_monedas(usuarios: list[int], motivo: str, cantidad: int) -> dict[int, tuple[int, int]]:
     with SessionLocal() as db:
-        return {u: dar(db, u, motivo, cantidad) for u in usuarios}
+        resultado = {u: dar(db, u, motivo, cantidad) for u in usuarios}
+        if motivo == "pomodoro":
+            for u in usuarios:
+                logros.sumar(db, u, "pomodoros")
+        return resultado
+
+
+def _contar(usuario_id: int, contador: str) -> None:
+    with SessionLocal() as db:
+        logros.sumar(db, usuario_id, contador)
+
+
+async def _contar_async(usuario_id: int, contador: str) -> None:
+    await run_in_threadpool(_contar, usuario_id, contador)
 
 
 async def _dar_monedas_async(usuarios: list[int], motivo: str, cantidad: int) -> dict[int, tuple[int, int]]:
@@ -236,6 +268,7 @@ PERSISTENCIA = Persistencia(
     guardar_pizarra=_guardar_pizarra_async,
     guardar_imagen=_guardar_imagen_async,
     dar_monedas=_dar_monedas_async,
+    contar=_contar_async,
     leer_perfil=_leer_perfil_async,
 )
 
@@ -292,8 +325,21 @@ async def conectar(websocket: WebSocket, codigo: str):
                 mensaje = json.loads(texto)
             except json.JSONDecodeError:
                 continue
-            if isinstance(mensaje, dict):
-                await sala.recibir(conexion, mensaje, guardar)
+            if not isinstance(mensaje, dict):
+                continue
+            tipo = mensaje.get("tipo")
+            if tipo in ("reaccion", "encuesta", "votar"):
+                # Reacciones y encuestas del chat: se guardan en la base y se avisa a todos
+                if tipo == "encuesta":
+                    momento = time.time()
+                    if momento - conexion.ultimo_mensaje < ESPERA_ENTRE_MENSAJES:
+                        continue
+                    conexion.ultimo_mensaje = momento
+                salida = await run_in_threadpool(_extra_del_chat, codigo, conexion, mensaje)
+                if salida:
+                    await sala.a_todos(salida)
+                continue
+            await sala.recibir(conexion, mensaje, guardar)
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -303,6 +349,90 @@ async def conectar(websocket: WebSocket, codigo: str):
         if not sala.conexiones:
             await sala.guardar_pizarra()
         gestor.limpiar(codigo)
+
+
+def _extra_del_chat(codigo: str, conexion: Conexion, mensaje: dict) -> dict | None:
+    tipo = mensaje.get("tipo")
+    if tipo == "reaccion":
+        return chat_extras.reaccionar(codigo, conexion.usuario_id, mensaje.get("mensaje_id"), mensaje.get("emoji"))
+    if tipo == "encuesta":
+        return chat_extras.crear_encuesta(
+            codigo, conexion.usuario_id, conexion.nombre, mensaje.get("pregunta"), mensaje.get("opciones")
+        )
+    return chat_extras.votar(codigo, conexion.usuario_id, mensaje.get("mensaje_id"), mensaje.get("opcion"))
+
+
+# --- Tablero: metas del grupo y notas fijadas ---
+
+MAX_METAS = 20
+MAX_NOTAS = 10
+
+
+@router.get("/{codigo}/tablero", response_model=list[ItemSalaOut])
+def tablero(codigo: str, usuario: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    sala = _sala_o_404(db, codigo, usuario)
+    return db.query(ItemSala).filter_by(sala_id=sala.id).order_by(ItemSala.id).all()
+
+
+@router.post("/{codigo}/tablero", response_model=ItemSalaOut, status_code=201)
+async def agregar_al_tablero(codigo: str, datos: ItemSalaIn, usuario: Usuario = Depends(usuario_actual)):
+    def guardar() -> ItemSalaOut:
+        with SessionLocal() as db:
+            sala = _sala_o_404(db, codigo, usuario)
+            cantidad = db.query(func.count(ItemSala.id)).filter_by(sala_id=sala.id, tipo=datos.tipo).scalar()
+            maximo = MAX_METAS if datos.tipo == "meta" else MAX_NOTAS
+            if cantidad >= maximo:
+                raise HTTPException(400, t("tablero_lleno", maximo=maximo))
+            item = ItemSala(
+                sala_id=sala.id, usuario_id=usuario.id, por=usuario.nombre, tipo=datos.tipo, texto=datos.texto.strip()
+            )
+            db.add(item)
+            db.commit()
+            return ItemSalaOut.model_validate(item)
+
+    item = await run_in_threadpool(guardar)
+    await _avisar_a_la_sala(codigo, {"tipo": "tablero"})
+    return item
+
+
+@router.patch("/{codigo}/tablero/{item_id}", response_model=ItemSalaOut)
+async def tildar_meta(codigo: str, item_id: int, datos: ItemSalaCambio, usuario: Usuario = Depends(usuario_actual)):
+    """Cualquiera de la sala puede marcar una meta como cumplida (o desmarcarla)."""
+
+    def guardar() -> ItemSalaOut:
+        with SessionLocal() as db:
+            item = _item_o_404(db, codigo, item_id, usuario)
+            item.hecho = datos.hecho
+            item.hecho_por = usuario.nombre if datos.hecho else None
+            db.commit()
+            return ItemSalaOut.model_validate(item)
+
+    item = await run_in_threadpool(guardar)
+    await _avisar_a_la_sala(codigo, {"tipo": "tablero"})
+    return item
+
+
+@router.delete("/{codigo}/tablero/{item_id}", status_code=204)
+async def borrar_del_tablero(codigo: str, item_id: int, usuario: Usuario = Depends(usuario_actual)):
+    def borrar() -> None:
+        with SessionLocal() as db:
+            item = _item_o_404(db, codigo, item_id, usuario)
+            sala = db.get(Sala, item.sala_id)
+            if usuario.id not in (item.usuario_id, sala.creador_id):
+                raise HTTPException(403, t("no_es_tu_item"))
+            db.delete(item)
+            db.commit()
+
+    await run_in_threadpool(borrar)
+    await _avisar_a_la_sala(codigo, {"tipo": "tablero"})
+
+
+def _item_o_404(db: Session, codigo: str, item_id: int, usuario: Usuario) -> ItemSala:
+    sala = _sala_o_404(db, codigo, usuario)
+    item = db.get(ItemSala, item_id)
+    if item is None or item.sala_id != sala.id:
+        raise HTTPException(404, t("item_no_existe"))
+    return item
 
 
 # --- Archivos compartidos (la "nube" de la sala) ---
@@ -444,6 +574,7 @@ def _preguntas_de_trivia(
     archivos: list[tuple[str, bytes]],
     leer_imagenes: Callable[[list[bytes]], list[str]],
     ia: TutorIA,
+    opciones: dict,
 ) -> list[dict]:
     contexto: list[Contexto] = []
     for nombre, datos in archivos:
@@ -466,13 +597,19 @@ def _preguntas_de_trivia(
     with SessionLocal() as db:
         usuario = db.get(Usuario, usuario_id)
         with con_ia(db, usuario, ia):
-            preguntas = ia.generar_quiz(contexto, PREGUNTAS, tema or None)
+            preguntas = ia.generar_trivia(
+                contexto, opciones["cantidad"], tema or None, opciones["modo"], opciones["dificultad"]
+            )
     return [p.model_dump() for p in preguntas]
 
 
-async def _preparar_trivia(sala, usuario_id: int, nombre: str, tema: str, archivos, leer_imagenes, ia) -> None:
+async def _preparar_trivia(
+    sala, usuario_id: int, nombre: str, tema: str, archivos, leer_imagenes, ia, opciones
+) -> None:
     try:
-        preguntas = await run_in_threadpool(_preguntas_de_trivia, usuario_id, tema, archivos, leer_imagenes, ia)
+        preguntas = await run_in_threadpool(
+            _preguntas_de_trivia, usuario_id, tema, archivos, leer_imagenes, ia, opciones
+        )
     except Exception as e:
         if isinstance(e, HTTPException):
             texto = str(e.detail)
@@ -486,7 +623,9 @@ async def _preparar_trivia(sala, usuario_id: int, nombre: str, tema: str, archiv
         await sala.al_usuario(usuario_id, {"tipo": "aviso", "texto": texto})
         return
     titulo = tema or PurePosixPath(archivos[0][0]).stem[:MAX_TEMA]
-    await sala.iniciar_trivia(Trivia(titulo, usuario_id, nombre, preguntas))
+    trivia = Trivia(titulo, usuario_id, nombre, preguntas, modo=opciones["modo"], dificultad=opciones["dificultad"])
+    trivia.rival, trivia.rival_nombre = opciones["rival"], opciones["rival_nombre"]
+    await sala.iniciar_trivia(trivia)
 
 
 @router.post("/{codigo}/trivia", status_code=202)
@@ -494,6 +633,10 @@ async def crear_trivia(
     codigo: str,
     archivos: Annotated[list[UploadFile], File()],
     tema: Annotated[str, Form()] = "",
+    modo: Annotated[str, Form()] = "opciones",
+    dificultad: Annotated[str, Form()] = "media",
+    cantidad: Annotated[int, Form()] = 8,
+    rival: Annotated[int | None, Form()] = None,
     usuario: Usuario = Depends(usuario_actual),
     leer_imagenes: Callable[[list[bytes]], list[str]] = Depends(get_ocr),
     ia: TutorIA = Depends(get_ia),
@@ -516,9 +659,24 @@ async def crear_trivia(
         raise HTTPException(400, t("archivo_vacio"))
     if not sala.puede_preparar_trivia():
         raise HTTPException(409, t("trivia_en_curso"))
+    if modo not in MODOS or dificultad not in DIFICULTADES or cantidad not in CANTIDADES:
+        raise HTTPException(400, t("trivia_opciones"))
+    rival_nombre = None
+    if rival is not None:
+        # Duelo: el rival tiene que estar en la sala ahora mismo
+        rival_nombre = next((c["nombre"] for c in sala.conectados() if c["id"] == rival and rival != usuario.id), None)
+        if rival_nombre is None:
+            raise HTTPException(400, t("rival_no_esta"))
+    opciones = {
+        "modo": modo,
+        "dificultad": dificultad,
+        "cantidad": cantidad,
+        "rival": rival,
+        "rival_nombre": rival_nombre,
+    }
     tema = " ".join(tema.split())[:MAX_TEMA]
     sala.preparando_trivia = {"usuario_id": usuario.id, "por": usuario.nombre, "tema": tema}
     await sala.a_todos(sala.estado())
     sala.tarea_trivia = asyncio.create_task(
-        _preparar_trivia(sala, usuario.id, usuario.nombre, tema, leidos, leer_imagenes, ia)
+        _preparar_trivia(sala, usuario.id, usuario.nombre, tema, leidos, leer_imagenes, ia, opciones)
     )

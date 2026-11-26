@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import config, rincon
+from .. import config, logros, rincon
 from ..db import SessionLocal, get_db
 from ..deps import con_ia, documento_o_404, get_ia, get_ocr, materia_o_404, usuario_actual
 from ..extraccion import ArchivoInvalido, extraer, trocear, unir_paginas
@@ -76,6 +76,7 @@ def guardar_documento(
     db.commit()
     salida = a_salida(doc)
     salida.monedas_ganadas, _ = rincon.dar(db, materia.usuario_id, "archivo", rincon.POR_ARCHIVO)
+    logros.sumar(db, materia.usuario_id, "apuntes")
     return salida
 
 
@@ -204,6 +205,7 @@ def resumir(
     with con_ia(db, usuario, ia):
         doc.resumen = ia.resumir(doc.nombre, doc.texto)
     db.commit()
+    logros.sumar(db, usuario.id, "resumenes")
     return a_salida(doc, detalle=True)
 
 

@@ -27,6 +27,8 @@ export interface JugadorTrivia {
   acerto: boolean | null // solo al mostrar la respuesta
 }
 
+export type ModoTrivia = 'opciones' | 'vf' | 'completar' | 'rapido'
+
 export interface EstadoTrivia {
   id: string
   tema: string
@@ -37,6 +39,10 @@ export interface EstadoTrivia {
   total: number
   fin: number // epoch en segundos, reloj del servidor
   segundos: number
+  modo: ModoTrivia
+  dificultad: 'facil' | 'media' | 'dificil'
+  rival: number | null // duelo 1 contra 1
+  rival_nombre: string | null
   pregunta: {
     enunciado: string
     opciones: string[]
@@ -61,8 +67,9 @@ export type EventoSala =
   | { evento: 'fase'; fase: 'estudio' | 'descanso' }
   | { evento: 'monedas'; ganadas: number; total: number; motivo: 'grupo' | 'solo' | 'pomodoro' | 'trivia' }
   | { evento: 'aviso'; texto?: string }
-  | { evento: 'trivia'; nombre: string; tema: string }
+  | { evento: 'trivia'; nombre: string; tema: string; para?: number | null }
   | { evento: 'archivos' }
+  | { evento: 'tablero' }
   | { evento: 'archivo'; nombre: string; archivo: string }
 
 export type LineaChat = { tipo: 'mensaje'; mensaje: MensajeSala } | { tipo: 'evento'; id: string; evento: EventoSala }
@@ -167,7 +174,22 @@ export function useSala(codigo: string, alEvento: (evento: EventoSala) => void) 
           if (datos.tipo === 'pizarra') combinarEnEscena(escena.current, datos.elementos)
           if (datos.tipo === 'imagen') archivos.current.set(datos.archivo.id, datos.archivo)
           oyentesPizarra.current.forEach((oyente) => oyente(datos as MensajePizarra))
-        } else if (datos.tipo === 'monedas' || datos.tipo === 'aviso' || datos.tipo === 'archivos') {
+        } else if (datos.tipo === 'reacciones' || datos.tipo === 'encuesta') {
+          // Se actualiza el mensaje del chat que cambió
+          setChat((c) =>
+            c.map((l) =>
+              l.tipo === 'mensaje' && l.mensaje.id === datos.mensaje_id
+                ? {
+                    ...l,
+                    mensaje:
+                      datos.tipo === 'reacciones'
+                        ? { ...l.mensaje, reacciones: datos.reacciones }
+                        : { ...l.mensaje, encuesta: datos.encuesta },
+                  }
+                : l,
+            ),
+          )
+        } else if (datos.tipo === 'monedas' || datos.tipo === 'aviso' || datos.tipo === 'archivos' || datos.tipo === 'tablero') {
           // Solo para esta persona: no van al chat
           alEventoRef.current({ ...datos, evento: datos.tipo } as EventoSala)
         } else if (datos.tipo === 'evento') {

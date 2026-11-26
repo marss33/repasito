@@ -283,3 +283,53 @@ class MovimientoMonedas(Base):
     creado: Mapped[datetime] = mapped_column(default=ahora)
 
     usuario: Mapped[Usuario] = relationship(back_populates="movimientos")
+
+
+# --- Tablero de la sala, reacciones y encuestas del chat ---
+
+
+class ItemSala(Base):
+    """Metas del grupo (se tildan al cumplirlas) y notas fijadas (fecha del parcial, qué entra)."""
+
+    __tablename__ = "tablero_sala"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sala_id: Mapped[int] = mapped_column(ForeignKey("salas.id", ondelete="CASCADE"), index=True)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"), default=None)
+    por: Mapped[str] = mapped_column(String(80))
+    tipo: Mapped[str] = mapped_column(String(8))  # meta o nota
+    texto: Mapped[str] = mapped_column(String(200))
+    hecho: Mapped[bool] = mapped_column(default=False)
+    hecho_por: Mapped[str | None] = mapped_column(String(80), default=None)
+    creado: Mapped[datetime] = mapped_column(default=ahora)
+
+
+class ReaccionSala(Base):
+    __tablename__ = "reacciones_sala"
+    __table_args__ = (UniqueConstraint("mensaje_id", "usuario_id", "emoji"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mensaje_id: Mapped[int] = mapped_column(ForeignKey("mensajes_sala.id", ondelete="CASCADE"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
+    emoji: Mapped[str] = mapped_column(String(16))
+
+
+class EncuestaSala(Base):
+    """Una encuesta del chat: la pregunta es el texto del mensaje; acá van las opciones y los votos."""
+
+    __tablename__ = "encuestas_sala"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mensaje_id: Mapped[int] = mapped_column(ForeignKey("mensajes_sala.id", ondelete="CASCADE"), unique=True)
+    opciones: Mapped[list] = mapped_column(JSON)
+    votos: Mapped[dict] = mapped_column(JSON, default=dict)  # {"id de usuario": índice de la opción}
+
+
+class ContadorUsuario(Base):
+    """Cuántas veces hizo cada cosa (pomodoros, apuntes, trivias...): de acá salen los logros."""
+
+    __tablename__ = "contadores_usuario"
+
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"), primary_key=True)
+    clave: Mapped[str] = mapped_column(String(30), primary_key=True)
+    valor: Mapped[int] = mapped_column(default=0)
